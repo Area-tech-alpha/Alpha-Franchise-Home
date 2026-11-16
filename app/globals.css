@@ -1,0 +1,538 @@
+@import "tailwindcss";
+
+/* Ponto de partida: globals.css do Alpha_Home. Cores trocadas pelas da LP de
+   franquia no WP (amarelo #FEE32F / #FFE500 / #EEA904 sobre preto #050505). */
+:root {
+  --bg-0: #050505;
+  --bg-1: #0b0b0b;
+  --bg-2: #141414;
+  --gold-1: #fee32f;
+  --gold-2: #ffe500;
+  --amber: #eea904;
+  --ink: #0c0c0c;
+  --text: #f6f6f7;
+  --text-muted: #b4b4b8;
+  --text-dim: #8d8d94;
+  --glass: rgba(255, 255, 255, 0.045);
+  --glass-strong: rgba(255, 255, 255, 0.07);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --border-gold: rgba(254, 227, 47, 0.4);
+  --error: #ff6b6b;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@theme {
+  --breakpoint-desk: 68.8125rem; /* 1101px */
+}
+
+@theme inline {
+  --color-bg-0: var(--bg-0);
+  --color-bg-1: var(--bg-1);
+  --color-bg-2: var(--bg-2);
+  --color-gold-1: var(--gold-1);
+  --color-gold-2: var(--gold-2);
+  --color-amber: var(--amber);
+  --color-ink: var(--ink);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-border-gold: var(--border-gold);
+  --color-error: var(--error);
+
+  --font-display: var(--font-clash-display), var(--font-general-sans), sans-serif;
+  --font-heading: var(--font-general-sans), sans-serif;
+  --font-body: var(--font-inter), sans-serif;
+  --font-serif: var(--font-playfair), Georgia, serif;
+
+  --ease-alpha: var(--ease);
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 96px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background: var(--bg-0);
+  color: var(--text);
+  font-family: var(--font-inter), sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--gold-1);
+  color: var(--bg-0);
+}
+
+/* Barra de rolagem amarela, como no WP. */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #0c0c0c;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background: var(--amber);
+}
+
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-clash-display), var(--font-general-sans), sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    /* O espaço da Clash Display é estreito; com tracking negativo as palavras colavam. */
+    word-spacing: 0.12em;
+    color: #fff;
+  }
+}
+
+@layer components {
+  .container-alpha {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 6%;
+  }
+
+  /* Destaque do título: itálico serifado amarelo (Playfair Display, como no WP). */
+  .em {
+    font-family: var(--font-playfair), Georgia, serif;
+    font-style: italic;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    /* O word-spacing extra dos títulos é só para a Clash Display. */
+    word-spacing: normal;
+    color: var(--gold-1);
+    text-shadow: 0 0 28px rgba(254, 227, 47, 0.25);
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--gold-1);
+    margin-bottom: 18px;
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 22px;
+    height: 2px;
+    background: var(--gold-1);
+    box-shadow: 0 0 12px var(--gold-1);
+  }
+
+  .section {
+    position: relative;
+    padding: 84px 0;
+  }
+
+  @media (min-width: 768px) {
+    .section {
+      padding: 110px 0;
+    }
+  }
+
+  .section-title {
+    font-size: clamp(2rem, 4.2vw, 3.3rem);
+    line-height: 1.08;
+  }
+
+  /* Fundo quadriculado do WP (alpha-grid-bg), feito em CSS. */
+  .grid-bg {
+    background-image:
+      radial-gradient(60% 50% at 50% 0%, rgba(254, 227, 47, 0.1), transparent 70%),
+      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size:
+      100% 100%,
+      44px 44px,
+      44px 44px;
+  }
+
+  .divider {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  /* ===== Botões ===== */
+  .btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 17px 30px;
+    min-height: 54px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    isolation: isolate;
+    cursor: pointer;
+    transition:
+      transform 0.3s var(--ease),
+      box-shadow 0.3s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease;
+  }
+
+  .btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform 0.7s ease;
+  }
+
+  .btn:hover::before {
+    transform: translateX(120%);
+  }
+
+  .btn svg {
+    transition: transform 0.3s var(--ease);
+  }
+
+  .btn:hover svg {
+    transform: translateX(4px);
+  }
+
+  .btn-primary {
+    background: var(--gold-1);
+    color: var(--ink);
+    box-shadow: 0 10px 34px rgba(254, 227, 47, 0.28);
+  }
+
+  .btn-primary:hover,
+  .btn-primary:focus-visible {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 46px rgba(254, 227, 47, 0.42);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.6;
+    transform: none;
+    cursor: progress;
+  }
+
+  .btn-sm {
+    padding: 11px 20px;
+    min-height: 44px;
+    font-size: 11.5px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--gold-1);
+    outline-offset: 3px;
+  }
+
+  /* ===== Formulário ===== */
+  .field-label {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+  }
+
+  /* 16px no celular: abaixo disso o Safari do iOS dá zoom ao focar. */
+  .field-input,
+  .phone-input-wrapper .PhoneInputInput {
+    width: 100%;
+    min-width: 0;
+    height: 42px;
+    padding: 0 13px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: #fff;
+    font-size: 16px;
+    outline: none;
+    appearance: none;
+    transition:
+      border-color 0.25s,
+      background-color 0.25s,
+      box-shadow 0.25s;
+  }
+
+  @media (min-width: 1024px) {
+    .field-input,
+    .phone-input-wrapper .PhoneInputInput {
+      font-size: 14px;
+    }
+  }
+
+  .field-input::placeholder,
+  .phone-input-wrapper .PhoneInputInput::placeholder {
+    color: var(--text-dim);
+  }
+
+  .field-input:focus,
+  .phone-input-wrapper .PhoneInputInput:focus {
+    border-color: var(--gold-1);
+    background-color: rgba(254, 227, 47, 0.06);
+    box-shadow: 0 0 0 3px rgba(254, 227, 47, 0.12);
+  }
+
+  .field-input[aria-invalid="true"],
+  .phone-input-wrapper .PhoneInputInput[aria-invalid="true"] {
+    border-color: var(--error);
+  }
+
+  /* react-phone-number-input: o seletor de país é customizado (phone-field.tsx). */
+  .phone-input-wrapper {
+    display: flex;
+    gap: 6px;
+    height: 42px;
+  }
+
+  .phone-input-wrapper .PhoneInputCountry {
+    display: contents;
+  }
+
+  .phone-input-wrapper .PhoneInputInput {
+    flex: 1;
+  }
+
+  /* ===== Respostas clicáveis (rádio nativo escondido) ===== */
+  .choice {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    color: #e4e4e8;
+    line-height: 1.15;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      border-color 0.2s,
+      background-color 0.2s,
+      color 0.2s,
+      transform 0.2s var(--ease);
+  }
+
+  .choice:hover {
+    border-color: rgba(254, 227, 47, 0.45);
+    background: rgba(254, 227, 47, 0.06);
+  }
+
+  .choice:active {
+    transform: scale(0.97);
+  }
+
+  .choice:has(input:focus-visible) {
+    outline: 2px solid var(--gold-1);
+    outline-offset: 2px;
+  }
+
+  .choice.is-invalid:not(.is-checked) {
+    border-color: rgba(255, 107, 107, 0.55);
+  }
+
+  /* Cartão (Atuação): bolinha + texto, até 2 linhas. */
+  .choice-card {
+    gap: 7px;
+    min-height: 44px;
+    padding: 6px 9px;
+    font-size: 12.5px;
+    font-weight: 500;
+  }
+
+  /* Celular estreito: 3 cartões numa linha só cabem sem a bolinha. */
+  @media (max-width: 419px) {
+    .choice-card {
+      justify-content: center;
+      padding: 6px 5px;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .choice-card .choice-dot {
+      display: none;
+    }
+  }
+
+  .choice-card.is-checked {
+    border-color: var(--gold-1);
+    background: rgba(254, 227, 47, 0.12);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px var(--gold-1);
+  }
+
+  /* Chip (faixas e prazo): compacto, centralizado; marcado vira amarelo cheio. */
+  .choice-chip {
+    justify-content: center;
+    min-height: 32px;
+    padding: 4px 6px;
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .choice-chip.is-checked {
+    border-color: var(--gold-1);
+    background: var(--gold-1);
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .choice-dot {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border-strong);
+    color: var(--ink);
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+
+  .choice.is-checked .choice-dot {
+    background: var(--gold-1);
+    border-color: var(--gold-1);
+  }
+
+  /* Abre/fecha com altura animada (faturamento da agência). */
+  .collapse-rows {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    margin-top: -12px; /* anula o gap do form enquanto fechado */
+    transition:
+      grid-template-rows 0.35s var(--ease),
+      opacity 0.25s ease,
+      margin-top 0.35s var(--ease);
+  }
+
+  .collapse-rows[data-open="true"] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    margin-top: 0;
+  }
+}
+
+/* ===== Ecossistema: fluxo animado na linha de conexão ===== */
+@keyframes flow-pulse {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(400%);
+  }
+}
+
+@keyframes flow-pulse-x {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+
+.flow-pulse {
+  animation: flow-pulse 2.6s linear infinite;
+}
+
+@media (min-width: 1101px) {
+  .flow-pulse {
+    animation-name: flow-pulse-x;
+  }
+}
+
+/* Brilho "respirando" do selo: anima só a opacidade de uma camada (composta na
+   GPU). Animar box-shadow repintava a cada frame e pesava no TBT. */
+@keyframes glow-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.glow-breathe {
+  position: relative;
+  box-shadow: 0 0 40px rgba(254, 227, 47, 0.25);
+}
+
+.glow-breathe::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  box-shadow: 0 0 70px rgba(254, 227, 47, 0.5);
+  animation: glow-breathe 3.5s ease-in-out infinite;
+  will-change: opacity;
+}
+
+/* ===== Reveal no scroll: só CSS, só onde há scroll-driven animations ===== */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(34px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: reveal-up linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 40%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .flow-pulse,
+  .glow-breathe::after {
+    animation: none;
+  }
+
+  .collapse-rows,
+  .choice {
+    transition: none;
+  }
+
+  .btn,
+  .btn::before,
+  .btn svg {
+    transition: none;
+  }
+}
