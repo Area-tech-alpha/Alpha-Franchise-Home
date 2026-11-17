@@ -20,10 +20,11 @@ const LIMITS: Record<LimiterName, number> = {
   // IP compartilhado (escritório, 4G) não pode travar pessoas diferentes.
   ip: 3,
 };
-// Escopo das chaves ("<escopo>:<limiter>:<sha256>"): cada página com form tem a
-// sua cota. Padrão "franchise" = as mesmas chaves de antes (form da franquia).
-export type RateLimitScope = "franchise" | "01lp";
-const DEFAULT_SCOPE: RateLimitScope = "franchise";
+const KEY_PREFIX: Record<LimiterName, string> = {
+  email: "franchise:email:",
+  telefone: "franchise:telefone:",
+  ip: "franchise:ip:",
+};
 
 let cached: Limiters | null | undefined;
 
@@ -58,14 +59,14 @@ export function normalizeTelefone(telefone: string) {
   return `+${telefone.replace(/\D/g, "")}`;
 }
 
-function key(name: LimiterName, value: string, scope: RateLimitScope = DEFAULT_SCOPE) {
-  return `${scope}:${name}:${createHash("sha256").update(value).digest("hex")}`;
+function key(name: LimiterName, value: string) {
+  return `${KEY_PREFIX[name]}${createHash("sha256").update(value).digest("hex")}`;
 }
 
 export type RateLimitResult = { ok: true } | { ok: false; by: LimiterName; retryAfterMinutes: number };
 
 export async function checkLeadRateLimit(
-  input: { email: string; telefone: string; ip: string | null; scope?: RateLimitScope },
+  input: { email: string; telefone: string; ip: string | null },
   limiters: Limiters | null = defaultLimiters(),
   now = Date.now()
 ): Promise<RateLimitResult> {
@@ -79,7 +80,7 @@ export async function checkLeadRateLimit(
   for (const [name, value] of checks) {
     if (!value) continue;
     try {
-      const { success, reset } = await limiters[name].limit(key(name, value, input.scope));
+      const { success, reset } = await limiters[name].limit(key(name, value));
       if (!success) {
         return { ok: false, by: name, retryAfterMinutes: Math.max(1, Math.ceil((reset - now) / 60000)) };
       }
@@ -94,13 +95,13 @@ export async function checkLeadRateLimit(
 // O destino do lead falhou e o form pede "tente de novo": devolve a cota de e-mail e telefone
 // para a nova tentativa não cair no limite. A do IP continua contando (anti-abuso).
 export async function releaseLeadRateLimit(
-  input: { email: string; telefone: string; scope?: RateLimitScope },
+  input: { email: string; telefone: string },
   limiters: Limiters | null = defaultLimiters()
 ) {
   if (!limiters) return;
   await Promise.all([
-    limiters.email.resetUsedTokens(key("email", normalizeEmail(input.email), input.scope)),
-    limiters.telefone.resetUsedTokens(key("telefone", normalizeTelefone(input.telefone), input.scope)),
+    limiters.email.resetUsedTokens(key("email", normalizeEmail(input.email))),
+    limiters.telefone.resetUsedTokens(key("telefone", normalizeTelefone(input.telefone))),
   ]).catch((err) => console.error("[rate-limit] Falha ao liberar a cota após erro no envio:", err));
 }
 

@@ -76,18 +76,14 @@ body {
   color: var(--bg-0);
 }
 
-/* Barra de rolagem amarela, como no WP. Fora da /01-lp e das páginas de
-   obrigado dela (.lp01-scope), que usam a barra padrão como no Alpha_Home. */
-:root:not(:has(.lp01-scope))::-webkit-scrollbar,
-:root:not(:has(.lp01-scope)) ::-webkit-scrollbar {
+/* Barra de rolagem amarela, como no WP. */
+::-webkit-scrollbar {
   width: 10px;
 }
-:root:not(:has(.lp01-scope))::-webkit-scrollbar-track,
-:root:not(:has(.lp01-scope)) ::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: #0c0c0c;
 }
-:root:not(:has(.lp01-scope))::-webkit-scrollbar-thumb,
-:root:not(:has(.lp01-scope)) ::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   border-radius: 10px;
   background: var(--amber);
 }
