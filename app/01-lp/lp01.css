@@ -444,3 +444,21 @@
     transform: none;
   }
 }
+
+/* Carrossel "O que fazemos": troca deslizando (servicos-carousel.tsx). Durante
+   o arraste e no reposicionamento do loop (clone -> card real), data-animate
+   desliga a transition. */
+.lp01-carousel-track {
+  transition: transform 600ms cubic-bezier(0.25, 0.8, 0.25, 1);
+  will-change: transform;
+}
+
+.lp01-carousel-track[data-animate="false"] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp01-carousel-track {
+    transition: none;
+  }
+}
