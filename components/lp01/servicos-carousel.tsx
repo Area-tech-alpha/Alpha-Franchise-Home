@@ -8,16 +8,26 @@ type Card = { src: string; alt: string };
 // Carrossel "O que fazemos": mais largo que o resto da seção (área dos cards
 // até 1440px). 3 cards inteiros no desktop (>=1024px, gap 20px), 2 no tablet e
 // 1 no celular com os vizinhos aparecendo nas bordas; os cards crescem na
-// proporção da imagem. Avança 1 card por vez, com troca instantânea (speed 0 no
-// WP), loop infinito e autoplay (autoplayMs) que pausa no hover, no foco por
-// teclado, fora da tela e no botão de pausa (visível só no foco do teclado);
-// sem autoplay com prefers-reduced-motion. Setas e swipe reiniciam o timer.
-// Setas por fora dos cards no desktop (no padding lateral, sem rolagem
-// horizontal) e por cima da borda no tablet/celular.
+// proporção da imagem. Setas por fora dos cards no desktop (no padding lateral,
+// sem rolagem horizontal) e por cima da borda no tablet/celular.
+//
+// Troca: desliza 1 card por vez (transition do transform em lp01.css). Loop
+// infinito contínuo: a lista é renderizada 3 vezes (a do meio é a real, as das
+// pontas são clones); quando o deslize termina num clone, a posição volta para o
+// card real equivalente sem animação, então o carrossel sempre anda para o
+// mesmo lado, sem "retão" de volta ao primeiro.
+//
+// Autoplay (autoplayMs) pausa no hover, no foco por teclado, durante o arraste,
+// fora da tela e no botão de pausa (visível só no foco do teclado). Com
+// prefers-reduced-motion não há autoplay e a troca é seca. Setas, teclado e
+// arraste (dedo ou mouse) reiniciam o timer.
 const PER_VIEW_QUERIES: [string, number][] = [
   ["(min-width: 1024px)", 3],
   ["(min-width: 768px)", 2],
 ];
+// Arraste maior que 15% da largura de um card troca de card; menor, volta.
+const DRAG_THRESHOLD = 0.15;
+
 export default function ServicosCarousel({
   cards,
   autoplayMs,
@@ -31,7 +41,12 @@ export default function ServicosCarousel({
   height: number;
   className?: string;
 }) {
-  const [index, setIndex] = useState(0);
+  const count = cards.length;
+  // Posição no trilho de 3 cópias; o card real "count + i" é o card i.
+  const [pos, setPos] = useState(count);
+  const [animate, setAnimate] = useState(true);
+  const [dragDx, setDragDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -40,16 +55,54 @@ export default function ServicosCarousel({
   const [tick, setTick] = useState(0); // reinicia o timer depois de navegação manual
   const [perView, setPerView] = useState(1);
   const rootRef = useRef<HTMLDivElement>(null);
-  const startX = useRef<number | null>(null);
-  const count = cards.length;
+  const trackRef = useRef<HTMLDivElement>(null);
+  const moving = useRef(false); // há um deslize animado em andamento
+  const drag = useRef<{ id: number; x: number; y: number; horizontal: boolean | null } | null>(null);
 
-  const go = useCallback(
-    (to: number) => {
-      setIndex(((to % count) + count) % count);
-      setTick((t) => t + 1);
+  const index = (((pos - count) % count) + count) % count;
+
+  // Leva um clone para o card real equivalente (mesmo visual, outro lugar no trilho).
+  const normalize = useCallback(
+    (p: number) => {
+      let n = p;
+      while (n >= 2 * count) n -= count;
+      while (n < count) n += count;
+      return n;
     },
     [count]
   );
+
+  const step = useCallback(
+    (delta: number) => {
+      // Sem deslize em andamento, parte sempre do card real.
+      const base = moving.current ? pos : normalize(pos);
+      const next = Math.min(Math.max(base + delta, 0), 3 * count - 1);
+      moving.current = !reduced;
+      setAnimate(!reduced);
+      setPos(reduced ? normalize(next) : next);
+    },
+    [count, normalize, pos, reduced]
+  );
+
+  const go = useCallback(
+    (delta: number) => {
+      step(delta);
+      setTick((t) => t + 1);
+    },
+    [step]
+  );
+
+  // Fim do deslize: se parou num clone, reposiciona no real sem animação e
+  // religa a transition no frame seguinte.
+  function onTransitionEnd(e: React.TransitionEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget || e.propertyName !== "transform") return;
+    moving.current = false;
+    const n = normalize(pos);
+    if (n === pos) return;
+    setAnimate(false);
+    setPos(n);
+    requestAnimationFrame(() => requestAnimationFrame(() => setAnimate(true)));
+  }
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -77,18 +130,67 @@ export default function ServicosCarousel({
     return () => observer.disconnect();
   }, []);
 
-  const playing = !reduced && !stopped && visible && !hovered && !focused;
+  const playing = !reduced && !stopped && visible && !hovered && !focused && !dragging;
 
   useEffect(() => {
     if (!playing) return;
-    const id = window.setTimeout(() => setIndex((i) => (i + 1) % count), autoplayMs);
+    const id = window.setTimeout(() => step(1), autoplayMs);
     return () => window.clearTimeout(id);
-  }, [playing, index, tick, autoplayMs, count]);
+  }, [playing, pos, tick, autoplayMs, step]);
 
-  // Três cópias da lista: a do meio é a "real"; as das pontas só preenchem as
-  // laterais para o loop não ter buraco.
+  function cardWidth() {
+    const first = trackRef.current?.firstElementChild as HTMLElement | null;
+    return first?.getBoundingClientRect().width ?? 1;
+  }
+
+  // ===== Arraste (dedo e mouse) =====
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, horizontal: null };
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (d.horizontal === null) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      // Gesto vertical fica com a rolagem da página (touch-action: pan-y).
+      d.horizontal = Math.abs(dx) > Math.abs(dy);
+      if (!d.horizontal) {
+        drag.current = null;
+        return;
+      }
+      e.currentTarget.setPointerCapture(e.pointerId);
+      // Se um deslize estava no meio, começa do card real (sem salto visível).
+      if (moving.current) {
+        moving.current = false;
+        setPos(normalize(pos));
+      }
+      setDragging(true);
+      setAnimate(false);
+    }
+    setDragDx(dx);
+  }
+
+  function endDrag(e: React.PointerEvent<HTMLDivElement>, cancelled: boolean) {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    if (!d.horizontal) return;
+    const dx = cancelled ? 0 : e.clientX - d.x;
+    setDragging(false);
+    setDragDx(0);
+    setAnimate(!reduced);
+    if (Math.abs(dx) > cardWidth() * DRAG_THRESHOLD) go(dx < 0 ? 1 : -1);
+    else setTick((t) => t + 1); // volta para o lugar (com a mesma animação)
+  }
+
   const slides = [...cards, ...cards, ...cards];
-  const pos = count + index;
+
+  // Cards reais (cópia do meio) que estão na tela; só eles ficam para o leitor de tela.
+  const shown = new Set(Array.from({ length: perView }, (_, k) => (index + k) % count));
 
   const arrow =
     "absolute top-1/2 z-10 flex -translate-y-1/2 items-center justify-center rounded-[27px] border border-white/10 bg-[#151515] p-[10px] text-white transition-transform hover:scale-105 md:px-[15px] md:py-[16px]";
@@ -110,36 +212,31 @@ export default function ServicosCarousel({
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
         }}
         onKeyDown={(e) => {
-          if (e.key === "ArrowRight") go(index + 1);
-          if (e.key === "ArrowLeft") go(index - 1);
+          if (e.key === "ArrowRight") go(1);
+          if (e.key === "ArrowLeft") go(-1);
         }}
       >
         <div
-          className="md:overflow-hidden"
+          className={`select-none md:overflow-hidden ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
           style={{ touchAction: "pan-y" }}
-          onPointerDown={(e) => {
-            startX.current = e.clientX;
-          }}
-          onPointerUp={(e) => {
-            if (startX.current === null) return;
-            const dx = e.clientX - startX.current;
-            startX.current = null;
-            if (Math.abs(dx) > 40) go(index + (dx < 0 ? 1 : -1));
-          }}
-          onPointerCancel={() => {
-            startX.current = null;
-          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={(e) => endDrag(e, false)}
+          onPointerCancel={(e) => endDrag(e, true)}
         >
           <div
-            className="flex gap-[var(--gap)] [--gap:0px] [--per:1] md:[--gap:20px] md:[--per:2] lg:[--per:3]"
+            ref={trackRef}
+            className="lp01-carousel-track flex gap-[var(--gap)] [--gap:0px] [--per:1] md:[--gap:20px] md:[--per:2] lg:[--per:3]"
+            data-animate={animate && !dragging ? "true" : "false"}
+            onTransitionEnd={onTransitionEnd}
             style={{
-              transform: `translateX(calc(-1 * ${pos} * ((100% - (var(--per) - 1) * var(--gap)) / var(--per) + var(--gap))))`,
+              transform: `translateX(calc(-1 * ${pos} * ((100% - (var(--per) - 1) * var(--gap)) / var(--per) + var(--gap)) + ${dragDx}px))`,
             }}
             aria-live={playing ? "off" : "polite"}
           >
             {slides.map((card, i) => {
-              // Só os cards inteiros na tela ficam na árvore de acessibilidade.
-              const current = i >= pos && i < pos + perView;
+              const real = i >= count && i < 2 * count;
+              const current = real && shown.has(i - count);
               return (
                 <div
                   key={`${i}-${card.src}`}
@@ -147,7 +244,11 @@ export default function ServicosCarousel({
                   aria-roledescription={current ? "slide" : undefined}
                   aria-label={current ? `${(i % count) + 1} de ${count}: ${card.alt}` : undefined}
                   aria-hidden={!current}
+                  // Clones e cards fora da tela: fora do Tab e do leitor de tela
+                  // (inert vale também para links/botões dentro do card).
                   inert={!current}
+                  tabIndex={current ? undefined : -1}
+                  data-clone={real ? undefined : "true"}
                   className="shrink-0"
                   style={{ width: "calc((100% - (var(--per) - 1) * var(--gap)) / var(--per))" }}
                 >
@@ -158,7 +259,7 @@ export default function ServicosCarousel({
                     height={height}
                     sizes="(max-width: 767px) calc(100vw - 40px), (max-width: 1023px) calc(50vw - 30px), 480px"
                     draggable={false}
-                    className="h-auto w-full select-none"
+                    className="pointer-events-none h-auto w-full select-none"
                   />
                 </div>
               );
@@ -168,7 +269,7 @@ export default function ServicosCarousel({
 
         <button
           type="button"
-          onClick={() => go(index - 1)}
+          onClick={() => go(-1)}
           aria-label="Serviço anterior"
           className={`${arrow} left-[-12px] md:left-[-14px] lg:left-[-64px]`}
         >
@@ -178,7 +279,7 @@ export default function ServicosCarousel({
         </button>
         <button
           type="button"
-          onClick={() => go(index + 1)}
+          onClick={() => go(1)}
           aria-label="Próximo serviço"
           className={`${arrow} right-[-12px] md:right-[-14px] lg:right-[-64px]`}
         >

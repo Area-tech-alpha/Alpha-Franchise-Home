@@ -128,7 +128,7 @@ export const content01lp = {
     eyebrow: "O que fazemos?",
     title: "A **Assessoria Alpha** estrutura o marketing do seu restaurante com base na sua **necessidade**",
     // Ordem e nomes (alt) dos cards do carrossel do WP; autoplay de 5 s como lá.
-    autoplayMs: 15000,
+    autoplayMs: 5000,
     cards: [
       { src: "/images/01-lp/servicos/acompanhamento.webp", alt: "Acompanhamento" },
       { src: "/images/01-lp/servicos/cardapio-digital.webp", alt: "Cardápio Digital" },
