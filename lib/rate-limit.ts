@@ -20,10 +20,8 @@ const LIMITS: Record<LimiterName, number> = {
   // IP compartilhado (escritório, 4G) não pode travar pessoas diferentes.
   ip: 3,
 };
-// Escopo das chaves ("<escopo>:<limiter>:<sha256>"): cada página com form tem a
-// sua cota. Padrão "franchise" = as mesmas chaves de antes (form da franquia).
-export type RateLimitScope = "franchise" | "01lp";
-const DEFAULT_SCOPE: RateLimitScope = "franchise";
+// Cada form tem o próprio escopo: o envio de um não gasta a cota do outro.
+export type RateLimitScope = "franchise" | "material-demanda";
 
 let cached: Limiters | null | undefined;
 
@@ -58,7 +56,7 @@ export function normalizeTelefone(telefone: string) {
   return `+${telefone.replace(/\D/g, "")}`;
 }
 
-function key(name: LimiterName, value: string, scope: RateLimitScope = DEFAULT_SCOPE) {
+function key(scope: RateLimitScope, name: LimiterName, value: string) {
   return `${scope}:${name}:${createHash("sha256").update(value).digest("hex")}`;
 }
 
@@ -70,6 +68,7 @@ export async function checkLeadRateLimit(
   now = Date.now()
 ): Promise<RateLimitResult> {
   if (!limiters) return { ok: true };
+  const scope = input.scope ?? "franchise";
   const checks: [LimiterName, string | null][] = [
     ["email", normalizeEmail(input.email)],
     ["telefone", normalizeTelefone(input.telefone)],
@@ -79,7 +78,7 @@ export async function checkLeadRateLimit(
   for (const [name, value] of checks) {
     if (!value) continue;
     try {
-      const { success, reset } = await limiters[name].limit(key(name, value, input.scope));
+      const { success, reset } = await limiters[name].limit(key(scope, name, value));
       if (!success) {
         return { ok: false, by: name, retryAfterMinutes: Math.max(1, Math.ceil((reset - now) / 60000)) };
       }
@@ -98,9 +97,10 @@ export async function releaseLeadRateLimit(
   limiters: Limiters | null = defaultLimiters()
 ) {
   if (!limiters) return;
+  const scope = input.scope ?? "franchise";
   await Promise.all([
-    limiters.email.resetUsedTokens(key("email", normalizeEmail(input.email), input.scope)),
-    limiters.telefone.resetUsedTokens(key("telefone", normalizeTelefone(input.telefone), input.scope)),
+    limiters.email.resetUsedTokens(key(scope, "email", normalizeEmail(input.email))),
+    limiters.telefone.resetUsedTokens(key(scope, "telefone", normalizeTelefone(input.telefone))),
   ]).catch((err) => console.error("[rate-limit] Falha ao liberar a cota após erro no envio:", err));
 }
 
