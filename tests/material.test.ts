@@ -201,12 +201,13 @@ function submit(fetchImpl: typeof fetch) {
   );
 }
 
-test("webhook payload: campos pedidos, telefone E.164, origem fixa e enviado_em ISO", () => {
+test("webhook payload: campos pedidos, telefone E.164, tag isca, origem fixa e enviado_em ISO", () => {
   const p = buildMaterialWebhookPayload(lead, tracking, PAGE_URL, new Date("2026-11-19T17:00:00Z"));
   assert.deepEqual(p, {
     nome: "Ana Souza",
     email: "ana@ex.com",
     telefone: "+5561911110001",
+    tag: "isca",
     utm_source: "facebook",
     utm_medium: "paid",
     utm_campaign: "franquia",
@@ -236,6 +237,9 @@ test("fluxo: CRM ok + webhook ok → 1 chamada em cada e redireciona", async () 
   );
   const body = JSON.parse(String(calls[1].init.body));
   assert.equal(body.origem, "material-5-hacks-geracao-de-demanda");
+  assert.equal(body.tag, "isca");
+  // O CRM não recebe o campo novo.
+  assert.equal("tag" in JSON.parse(String(calls[0].init.body)), false);
   assert.equal(body.page_url, PAGE_URL);
   assert.ok(calls[1].init.signal instanceof AbortSignal);
 });

@@ -65,6 +65,8 @@ export function buildMaterialWebhookPayload(
     nome: lead.nome,
     email: lead.email,
     telefone: lead.telefone, // E.164, ex.: +5561999999999
+    // Só no webhook (o CRM não recebe campo novo).
+    tag: "isca",
     utm_source: tracking.utm_source ?? "",
     utm_medium: tracking.utm_medium ?? "",
     utm_campaign: tracking.utm_campaign ?? "",
