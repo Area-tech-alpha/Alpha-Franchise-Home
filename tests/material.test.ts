@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildMaterialCrmPayload, deliverMaterialLead, materialLeadSchema, type MaterialLeadData } from "@/lib/material";
+import {
+  buildMaterialCrmPayload,
+  buildMaterialWebhookPayload,
+  deliverMaterialLead,
+  materialLeadSchema,
+  parsePageUrl,
+  processMaterialLead,
+  type MaterialLeadData,
+} from "@/lib/material";
 import { checkLeadRateLimit, releaseLeadRateLimit, type Limiter, type Limiters } from "@/lib/rate-limit";
 import { captureErrors, fakeFetch, semDadosPessoais, throwingFetch, tracking, type FetchCall } from "./helpers";
 
@@ -164,4 +172,125 @@ test("rate limit material: CRM falhou → cota devolvida para tentar de novo", a
   await checkLeadRateLimit({ ...input, scope: "material-demanda" }, limiters, 0);
   await releaseLeadRateLimit({ ...input, scope: "material-demanda" }, limiters);
   assert.equal((await checkLeadRateLimit({ ...input, scope: "material-demanda" }, limiters, 0)).ok, true);
+});
+
+// ---------- Webhook do n8n (cópia do lead depois do CRM) ----------
+// Hosts fictícios: nunca a URL real do CRM nem do n8n.
+
+const CRM_URL = "https://crm.ex.com/external/leads";
+const WEBHOOK_URL = "https://n8n.ex.com/webhook/teste";
+const PAGE_URL = "https://lp.ex.com/material-geracao-de-demanda?utm_source=facebook";
+
+// fetch falso que responde por URL e guarda cada chamada.
+function routedFetch(routes: Record<string, () => Response | Promise<Response>>, calls: FetchCall[]) {
+  return (async (url: string, init: RequestInit) => {
+    calls.push({ url, init });
+    const handler = routes[url];
+    if (!handler) throw new Error(`URL inesperada no teste: ${url}`);
+    return handler();
+  }) as unknown as typeof fetch;
+}
+
+const ok201 = () => new Response(JSON.stringify({ ok: true }), { status: 201 });
+
+function submit(fetchImpl: typeof fetch) {
+  withCrmEnv();
+  return processMaterialLead(
+    { data: lead, rawTracking: tracking, rawPageUrl: PAGE_URL, ip: "200.1.1.1" },
+    { fetchImpl, destination: "crm", limiters: memoryLimiters().limiters, webhookUrl: WEBHOOK_URL }
+  );
+}
+
+test("webhook payload: campos pedidos, telefone E.164, origem fixa e enviado_em ISO", () => {
+  const p = buildMaterialWebhookPayload(lead, tracking, PAGE_URL, new Date("2026-11-19T17:00:00Z"));
+  assert.deepEqual(p, {
+    nome: "Ana Souza",
+    email: "ana@ex.com",
+    telefone: "+5561911110001",
+    utm_source: "facebook",
+    utm_medium: "paid",
+    utm_campaign: "franquia",
+    utm_content: "",
+    utm_term: "",
+    fbclid: "abc",
+    origem: "material-5-hacks-geracao-de-demanda",
+    page_url: PAGE_URL,
+    enviado_em: "2026-11-19T14:00:00-03:00",
+  });
+});
+
+test("page_url: só http(s); qualquer outra coisa vira vazio", () => {
+  assert.equal(parsePageUrl(PAGE_URL), PAGE_URL);
+  assert.equal(parsePageUrl("javascript:alert(1)"), "");
+  assert.equal(parsePageUrl(123), "");
+  assert.equal(parsePageUrl(`https://x.com/${"a".repeat(1200)}`), "");
+});
+
+test("fluxo: CRM ok + webhook ok → 1 chamada em cada e redireciona", async () => {
+  const calls: FetchCall[] = [];
+  const res = await submit(routedFetch({ [CRM_URL]: ok201, [WEBHOOK_URL]: ok201 }, calls));
+  assert.deepEqual(res, { success: true, redirectTo: "/material-geracao-de-demanda/obrigado" });
+  assert.deepEqual(
+    calls.map((c) => c.url),
+    [CRM_URL, WEBHOOK_URL]
+  );
+  const body = JSON.parse(String(calls[1].init.body));
+  assert.equal(body.origem, "material-5-hacks-geracao-de-demanda");
+  assert.equal(body.page_url, PAGE_URL);
+  assert.ok(calls[1].init.signal instanceof AbortSignal);
+});
+
+test("fluxo: webhook fora (500 ou rede) → ainda redireciona; log sem URL nem dados", async () => {
+  for (const webhook of [
+    () => new Response("erro ana@ex.com", { status: 500 }),
+    () => {
+      throw new DOMException("timeout ana@ex.com", "TimeoutError");
+    },
+  ]) {
+    const calls: FetchCall[] = [];
+    let res;
+    const logs = await captureErrors(async () => {
+      res = await submit(routedFetch({ [CRM_URL]: ok201, [WEBHOOK_URL]: webhook }, calls));
+    });
+    assert.deepEqual(res, { success: true, redirectTo: "/material-geracao-de-demanda/obrigado" });
+    assert.equal(calls.length, 2);
+    assert.ok(semDadosPessoais(logs));
+    assert.ok(logs.every((l) => !l.includes("n8n") && !l.includes("ex.com")));
+  }
+});
+
+test("fluxo: webhook sem env → ainda redireciona", async () => {
+  withCrmEnv();
+  const calls: FetchCall[] = [];
+  let res;
+  await captureErrors(async () => {
+    res = await processMaterialLead(
+      { data: lead, rawTracking: tracking, rawPageUrl: PAGE_URL, ip: null },
+      { fetchImpl: routedFetch({ [CRM_URL]: ok201 }, calls), destination: "crm", limiters: null, webhookUrl: "" }
+    );
+  });
+  assert.equal(res!.success, true);
+  assert.equal(calls.length, 1);
+});
+
+test("fluxo: CRM fora → não chama o webhook e pede para tentar de novo", async () => {
+  const calls: FetchCall[] = [];
+  let res;
+  await captureErrors(async () => {
+    res = await submit(
+      routedFetch(
+        { [CRM_URL]: () => new Response(JSON.stringify({ code: "DOWN" }), { status: 503 }), [WEBHOOK_URL]: ok201 },
+        calls
+      )
+    );
+  });
+  assert.deepEqual(res, {
+    success: false,
+    reason: "destination",
+    error: "Não conseguimos enviar agora. Tente de novo em instantes.",
+  });
+  assert.deepEqual(
+    calls.map((c) => c.url),
+    [CRM_URL]
+  );
 });

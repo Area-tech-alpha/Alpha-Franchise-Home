@@ -96,7 +96,7 @@ export default function MaterialForm() {
     setSending(true);
     setGlobalError("");
     try {
-      const res = await submitMaterialLead(parsed.data, trackingRef.current);
+      const res = await submitMaterialLead(parsed.data, trackingRef.current, window.location.href);
       if (res.success) {
         window.location.assign(res.redirectTo);
         return;
