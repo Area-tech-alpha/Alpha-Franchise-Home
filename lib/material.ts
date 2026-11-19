@@ -1,6 +1,5 @@
-import { sendLeadToCrm } from "@/lib/crm";
 import type { LeadTracking } from "@/lib/lead-constants";
-import { resolveLeadDestination, type LeadDestination, type LeadResult } from "@/lib/lead-destination";
+import type { LeadResult } from "@/lib/lead-destination";
 import { materialLeadSchema, type MaterialLeadData } from "@/lib/material-schema";
 import { MATERIAL_OBRIGADO_PATH, material } from "@/lib/material-content";
 import { checkLeadRateLimit, releaseLeadRateLimit, type Limiters } from "@/lib/rate-limit";
@@ -9,49 +8,11 @@ import { nowSaoPaulo } from "@/lib/webhook";
 
 export { materialLeadSchema, type MaterialLeadData } from "@/lib/material-schema";
 
-// Lead da LP do material: só nome, WhatsApp e e-mail. Vai para o mesmo intake
-// do CRM que o form da franquia (lib/crm.ts), com destination "hq" (nenhum
-// campo obrigatório no intake). Campos que este form não tem (atuação,
-// investimento, tipo_lead...) não vão no payload: nada é inventado.
+// Lead da LP do material: só nome, WhatsApp e e-mail. Vai SÓ para o webhook
+// do n8n (LEAD_WEBHOOK_URL_MATERIAL); não passa pelo CRM nem por
+// LEAD_DESTINATION (isso é só do form da franquia).
 
-export function buildMaterialCrmPayload(
-  lead: MaterialLeadData,
-  tracking: LeadTracking,
-  sdrEmail: string | undefined = process.env.CRM_SDR_EMAIL?.trim() || undefined
-) {
-  return {
-    destination: "hq" as const,
-    ...(sdrEmail && { sdr_email: sdrEmail }),
-    source: "alpha-franchise",
-    name: lead.nome,
-    email: lead.email,
-    phone: lead.telefone,
-    utm_source: tracking.utm_source,
-    utm_medium: tracking.utm_medium,
-    utm_campaign: tracking.utm_campaign,
-    utm_content: tracking.utm_content,
-    utm_term: tracking.utm_term,
-    fbclid: tracking.fbclid,
-  };
-}
-
-// Mesmo caminho do form da franquia: só envia com LEAD_DESTINATION=crm. Outro
-// valor = erro de configuração (o form mostra "tente de novo"; o lead não é
-// descartado em silêncio nem mandado para o webhook, que espera os campos da franquia).
-export async function deliverMaterialLead(
-  lead: MaterialLeadData,
-  tracking: LeadTracking,
-  {
-    destination = resolveLeadDestination(),
-    fetchImpl = fetch,
-  }: { destination?: LeadDestination | null; fetchImpl?: typeof fetch } = {}
-): Promise<LeadResult> {
-  if (destination === "crm") return sendLeadToCrm(buildMaterialCrmPayload(lead, tracking), fetchImpl);
-  console.error('[material] LEAD_DESTINATION precisa ser "crm" para o lead do material');
-  return { ok: false, httpStatus: 0, reason: "destination_not_configured" };
-}
-
-// ---------- Webhook do n8n (cópia do lead, depois do CRM) ----------
+// ---------- Webhook do n8n (único destino do lead) ----------
 
 export const MATERIAL_ORIGEM = "material-5-hacks-geracao-de-demanda";
 
@@ -65,7 +26,6 @@ export function buildMaterialWebhookPayload(
     nome: lead.nome,
     email: lead.email,
     telefone: lead.telefone, // E.164, ex.: +5561999999999
-    // Só no webhook (o CRM não recebe campo novo).
     tag: "isca",
     utm_source: tracking.utm_source ?? "",
     utm_medium: tracking.utm_medium ?? "",
@@ -132,7 +92,6 @@ export async function processMaterialLead(
   input: { data: unknown; rawTracking?: unknown; rawPageUrl?: unknown; ip: string | null },
   deps: {
     fetchImpl?: typeof fetch;
-    destination?: LeadDestination | null;
     limiters?: Limiters | null;
     webhookUrl?: string;
   } = {}
@@ -157,21 +116,16 @@ export async function processMaterialLead(
     };
   }
 
-  const crm = await deliverMaterialLead(lead, tracking, {
-    ...("destination" in deps && { destination: deps.destination }),
-    ...(deps.fetchImpl && { fetchImpl: deps.fetchImpl }),
-  });
-  if (!crm.ok) {
-    if (deps.limiters === undefined) await releaseLeadRateLimit(rateInput);
-    else await releaseLeadRateLimit(rateInput, deps.limiters);
-    return { success: false, error: errors.destination, reason: "destination" };
-  }
-
-  // O CRM já tem o lead: falha no webhook só loga e o material é liberado.
-  await sendMaterialToWebhook(
+  // Só libera o material quando o webhook confirma; senão devolve a cota.
+  const result = await sendMaterialToWebhook(
     buildMaterialWebhookPayload(lead, tracking, parsePageUrl(input.rawPageUrl)),
     deps.fetchImpl,
     deps.webhookUrl
   );
+  if (!result.ok) {
+    if (deps.limiters === undefined) await releaseLeadRateLimit(rateInput);
+    else await releaseLeadRateLimit(rateInput, deps.limiters);
+    return { success: false, error: errors.destination, reason: "destination" };
+  }
   return { success: true, redirectTo: MATERIAL_OBRIGADO_PATH };
 }
