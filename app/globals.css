@@ -318,6 +318,21 @@ body {
     flex: 1;
   }
 
+  /* Bandeira SVG do seletor de DDI (LP do material). */
+  .flag-svg {
+    display: block;
+    width: 20px;
+    height: auto;
+    border-radius: 2px;
+  }
+
+  /* Form curto da LP do material: campos mais altos, bons de tocar no celular. */
+  .field-input-lg,
+  .field-lg .phone-input-wrapper,
+  .field-lg .phone-input-wrapper .PhoneInputInput {
+    height: 50px;
+  }
+
   /* ===== Respostas clicáveis (rádio nativo escondido) ===== */
   .choice {
     display: flex;

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import PhoneInput, { getCountryCallingCode } from "react-phone-number-input";
 import type { Country, Value as PhoneValue } from "react-phone-number-input";
 import ptBR from "react-phone-number-input/locale/pt-BR.json";
+import { SVG_FLAGS } from "@/components/ui/flags";
 
 // Carregado sob demanda pelo lead-form (primeira interação com o form): a base
 // de DDIs do libphonenumber não entra no JS inicial da página.
@@ -18,17 +19,30 @@ export function flagEmoji(country?: Country) {
   return country.toUpperCase().replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
+// Bandeira SVG (opção svgFlags, usada na LP do material). A LP da franquia segue no emoji.
+function SvgFlag({ country }: { country?: Country }) {
+  const Flag = country ? SVG_FLAGS[country] : undefined;
+  if (!Flag) return <span>{flagEmoji(country)}</span>;
+  return <Flag className="flag-svg" />;
+}
+
+function EmojiFlag({ country }: { country?: Country }) {
+  return <span>{flagEmoji(country)}</span>;
+}
+
 type CountryOption = { value?: Country; label: string; divider?: boolean };
+type CountrySelectProps = {
+  value?: Country;
+  onChange: (v?: Country) => void;
+  options: CountryOption[];
+};
 
 function CountrySelect({
   value,
   onChange,
   options,
-}: {
-  value?: Country;
-  onChange: (v?: Country) => void;
-  options: CountryOption[];
-}) {
+  Flag,
+}: CountrySelectProps & { Flag: typeof EmojiFlag }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -58,7 +72,9 @@ function CountrySelect({
         aria-label={`DDI: ${value ? `+${getCountryCallingCode(value)}` : "selecionar"}`}
         className="flex h-full items-center gap-1.5 rounded-[9px] border border-border bg-white/[0.04] px-2.5 text-[13.5px] text-white transition-colors focus:border-gold-1 focus:outline-none"
       >
-        <span aria-hidden="true">{flagEmoji(value)}</span>
+        <span aria-hidden="true" className="flex items-center">
+          <Flag country={value} />
+        </span>
         <span>{value ? `+${getCountryCallingCode(value)}` : ""}</span>
         <span className="text-[10px] text-text-dim" aria-hidden="true">
           ▾
@@ -85,7 +101,9 @@ function CountrySelect({
                     opt.value === value ? "text-gold-1" : "text-white"
                   }`}
                 >
-                  <span aria-hidden="true">{flagEmoji(opt.value)}</span>
+                  <span aria-hidden="true" className="flex items-center">
+                    <Flag country={opt.value} />
+                  </span>
                   <span className="flex-1 truncate">{opt.label}</span>
                   <span className="shrink-0 text-xs text-text-dim">+{getCountryCallingCode(opt.value!)}</span>
                 </button>
@@ -97,6 +115,9 @@ function CountrySelect({
   );
 }
 
+const EmojiCountrySelect = (props: CountrySelectProps) => <CountrySelect {...props} Flag={EmojiFlag} />;
+const SvgCountrySelect = (props: CountrySelectProps) => <CountrySelect {...props} Flag={SvgFlag} />;
+
 export default function PhoneField({
   value,
   onChange,
@@ -104,6 +125,7 @@ export default function PhoneField({
   invalid,
   describedBy,
   autoFocus,
+  svgFlags = false,
 }: {
   value: string | undefined;
   onChange: (value: string | undefined) => void;
@@ -111,6 +133,7 @@ export default function PhoneField({
   invalid: boolean;
   describedBy?: string;
   autoFocus?: boolean;
+  svgFlags?: boolean;
 }) {
   return (
     <PhoneInput
@@ -128,7 +151,7 @@ export default function PhoneField({
       aria-invalid={invalid}
       aria-describedby={describedBy}
       className="phone-input-wrapper"
-      countrySelectComponent={CountrySelect as never}
+      countrySelectComponent={(svgFlags ? SvgCountrySelect : EmojiCountrySelect) as never}
     />
   );
 }

@@ -34,8 +34,8 @@ export function buildCrmLeadPayload(
 export type CrmLeadPayload = ReturnType<typeof buildCrmLeadPayload>;
 
 // Logs só com status e o código de erro estável do CRM: nunca o corpo, que pode
-// ecoar dados do lead.
-export async function sendLeadToCrm(payload: CrmLeadPayload, fetchImpl: typeof fetch = fetch): Promise<LeadResult> {
+// ecoar dados do lead. Também usado pela LP do material (lib/material.ts).
+export async function sendLeadToCrm(payload: Record<string, unknown>, fetchImpl: typeof fetch = fetch): Promise<LeadResult> {
   const baseUrl = process.env.CRM_API_URL;
   const apiKey = process.env.CRM_EXTERNAL_LEADS_API_KEY;
   if (!baseUrl || !apiKey) {
