@@ -83,3 +83,15 @@ test("maskUrl: só host + começo do path", () => {
   assert.equal(maskUrl(WEBHOOK), "n8n.ex.com/webhook…");
   assert.equal(maskUrl("não é url"), "(URL inválida)");
 });
+
+test("webhook envio: LEAD_WEBHOOK_KEY vai em x-api-key (entrada de leads do CRM)", async () => {
+  process.env.LEAD_WEBHOOK_URL = WEBHOOK;
+  process.env.LEAD_WEBHOOK_KEY = "chave-franquia";
+  try {
+    const calls: FetchCall[] = [];
+    await sendLeadToWebhook(buildWebhookPayload(lead, tracking, now), fakeFetch(() => new Response("ok"), calls));
+    assert.equal((calls[0].init.headers as Record<string, string>)["x-api-key"], "chave-franquia");
+  } finally {
+    delete process.env.LEAD_WEBHOOK_KEY;
+  }
+});

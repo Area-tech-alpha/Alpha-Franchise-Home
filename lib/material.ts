@@ -50,10 +50,14 @@ export async function sendMaterialToWebhook(
     console.error("[material-webhook] LEAD_WEBHOOK_URL_MATERIAL não definida");
     return { ok: false, httpStatus: 0, reason: "webhook_not_configured" };
   }
+  // Mesma chave do form da franquia (LEAD_WEBHOOK_KEY): com a URL da entrada de leads do CRM
+  // ({CRM}/external/lead-intake/franchise/franquia), o lead do material entra na Comercial
+  // Franquias como franquia (o CRM reconhece pelo tag "isca"). Vazia = sem header (n8n).
+  const key = process.env.LEAD_WEBHOOK_KEY?.trim();
   try {
     const res = await fetchImpl(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(key && { "x-api-key": key }) },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000),
     });

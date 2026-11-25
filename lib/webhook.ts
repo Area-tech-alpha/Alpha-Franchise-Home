@@ -72,10 +72,13 @@ export async function sendLeadToWebhook(payload: WebhookPayload, fetchImpl: type
     return { ok: false, httpStatus: 0, reason: "webhook_not_configured" };
   }
   const target = maskUrl(url);
+  // LEAD_WEBHOOK_KEY: chave da entrada de leads do CRM (LEAD_INTAKE_FRANCHISE_KEY), em x-api-key.
+  // Vazia = sem header (webhook antigo do n8n).
+  const key = process.env.LEAD_WEBHOOK_KEY?.trim();
   try {
     const res = await fetchImpl(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(key && { "x-api-key": key }) },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000),
     });

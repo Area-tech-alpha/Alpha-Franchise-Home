@@ -13,7 +13,7 @@ test("resolveLeadDestination: crm, webhook, maiúsculas/espaços; resto = null",
 
 test('LEAD_DESTINATION="crm": vai só para o CRM', async () => {
   process.env.CRM_API_URL = "https://crm.ex.com";
-  process.env.CRM_EXTERNAL_LEADS_API_KEY = "chave";
+  process.env.CRM_LEAD_INTAKE_KEY = "chave";
   process.env.LEAD_WEBHOOK_URL = "https://n8n.ex.com/webhook/x";
   const calls: FetchCall[] = [];
   const res = await deliverLead(lead, tracking, {
@@ -22,8 +22,8 @@ test('LEAD_DESTINATION="crm": vai só para o CRM', async () => {
   });
   assert.equal(res.ok, true);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "https://crm.ex.com/external/leads");
-  assert.equal(JSON.parse(String(calls[0].init.body)).source, "alpha-franchise");
+  assert.equal(calls[0].url, "https://crm.ex.com/external/lead-intake/franchise/franquia");
+  assert.equal(JSON.parse(String(calls[0].init.body)).origem, "alpha-franchise");
 });
 
 test('LEAD_DESTINATION="webhook": vai só para o webhook', async () => {
